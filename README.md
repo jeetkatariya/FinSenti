@@ -246,32 +246,6 @@ demo.launch(share=True)
 # negative
 ```
 
-## Training procedure
-
-### Training hyperparameters
-
-The following hyperparameters were used during training:
-* learning_rate: 0.0001
-* train_batch_size: 32
-* eval_batch_size: 32
-* seed: 42
-* distributed_type: multi-GPU
-* num_devices: 2
-* total_train_batch_size: 64
-* total_eval_batch_size: 64
-* optimizer: Adam with betas=(0.9, 0.999) and epsilon=1e-08
-* lr_scheduler_type: cosine
-* lr_scheduler_warmup_steps: 10
-* num_epochs: 4
-
-### Training results
-
-| Training Loss | Epoch | Step | Validation Loss |
-|:-------------:|:-----:|:----:|:---------------:|
-| 0.0680        | 1.0   | 1140 | 0.1121          |
-| 0.1337        | 2.0   | 2280 | 0.1009          |
-| 0.0499        | 3.0   | 3420 | 0.1147          |
-| 0.0014        | 4.0   | 4560 | 0.1599          |
 
 ### Frameworks
 
