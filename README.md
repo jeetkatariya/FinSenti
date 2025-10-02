@@ -95,27 +95,35 @@ This model is a fine-tuned version of [mistralai/Mistral-7B-v0.1](https://huggin
 
 ```python
 
-# Downloading necessary dependencies
+# --- install deps ---
 !pip install -qU transformers peft datasets scikit-learn seaborn matplotlib pandas tqdm bitsandbytes gradio
 
+# --- get the FinSenti adapter from GitHub (uses Git LFS) ---
+# (If apt is unavailable in your env, it's fine—'|| true' prevents a hard error.)
+!apt-get -y install git-lfs || true
+!git lfs install || true
+!rm -rf FinSenti
+!git clone https://github.com/jeetkatariya/FinSenti.git
 
+# --- (optional) Hugging Face auth for the base model download ---
 from huggingface_hub import login
-login(token="Your_HuggingFace_Access_Token")
-
+# Replace with your token if needed; you can also skip login if your env already has access.
+# login(token="YOUR_HF_TOKEN")
 
 import torch
 from transformers import AutoTokenizer, AutoModelForCausalLM
 from peft import PeftModel
 
-# Defining model identifiers
+# Base model from HF and LoRA adapter from the cloned GitHub repo.
+# The repo's config indicates it was trained on mistralai/Mistral-7B-v0.1.  :contentReference[oaicite:2]{index=2}
 base_model = "mistralai/Mistral-7B-v0.1"
-peft_model = "Ayansk11/Finistral-7B_lora"
+peft_model_path = "./FinSenti"  # local path to the cloned repo containing adapter_model.safetensors
 
-# Loading tokenizer
+# --- tokenizer ---
 tokenizer = AutoTokenizer.from_pretrained(base_model, use_auth_token=True)
 tokenizer.pad_token = tokenizer.eos_token
 
-# Loading base model with 8-bit precision
+# --- base model (8-bit to save VRAM) ---
 model = AutoModelForCausalLM.from_pretrained(
     base_model,
     device_map="auto",
@@ -124,32 +132,27 @@ model = AutoModelForCausalLM.from_pretrained(
     use_auth_token=True
 )
 
-# Loading LoRA adapter
-model = PeftModel.from_pretrained(model, peft_model)
+# --- load LoRA from the GitHub folder ---
+model = PeftModel.from_pretrained(model, peft_model_path)
 model.eval()
 
-
-def predict_sentiment(text):
-
-    # Formatting the input text into a prompt
-
+def predict_sentiment(text: str):
+    """
+    Format the prompt, generate, and extract a coarse sentiment label.
+    """
     prompt = f"""Instruction: What is the sentiment of this news? Please choose an answer from {{negative/neutral/positive}}
-    Input: {text}
-    Answer: """
+Input: {text}
+Answer: """
 
-    # Tokenizing the prompt
     inputs = tokenizer(prompt, return_tensors="pt").to(model.device)
-
-    # Generating Answer
     with torch.no_grad():
         outputs = model.generate(**inputs, max_new_tokens=20)
 
     decoded_output = tokenizer.decode(outputs[0], skip_special_tokens=True)
 
-    # Extracting the answer
+    # Parse the first token after "Answer:" and map to a label.
     answer = decoded_output.split("Answer:")[-1].strip().split()[0].lower()
 
-    # Determining the sentiment
     if "neg" in answer:
         return "Negative"
     elif "neu" in answer:
@@ -157,9 +160,9 @@ def predict_sentiment(text):
     elif "pos" in answer:
         return "Positive"
     else:
-        return "Neutral"  
+        return "Neutral"
 
-
+# --- simple Gradio UI (same look & feel) ---
 import gradio as gr
 
 custom_css = """
@@ -187,12 +190,10 @@ body, .gradio-container {
 """
 
 with gr.Blocks(
-    
     title="Finistral AI: The Market Sentiment Analyst",
-    theme=gr.themes.Base(),  
-    css=custom_css          
+    theme=gr.themes.Base(),
+    css=custom_css
 ) as demo:
-
     gr.Markdown(
         """
         <div style='text-align:center;'>
@@ -207,8 +208,7 @@ with gr.Blocks(
         """
     )
     gr.Markdown(
-        "Paste in a financial news snippet, headline, or article "
-        "to see its sentiment breakdown."
+        "Paste in a financial news snippet, headline, or article to see its sentiment breakdown."
     )
 
     with gr.Row():
@@ -216,13 +216,15 @@ with gr.Blocks(
             input_text = gr.Textbox(
                 lines=6,
                 placeholder="E.g. “Tech stocks rally as Fed signals rate cut…”",
-                label="Enter Financial News"
+                label="Enter Financial News",
+                elem_classes=["input_txt"]
             )
             analyze_btn = gr.Button("🔍 Analyze Sentiment")
         with gr.Column(scale=1):
             output_lbl = gr.Label(
                 num_top_classes=3,
-                label="Top 3 Sentiment Classes"
+                label="Top 3 Sentiment Classes",
+                elem_classes=["output_txt"]
             )
 
     analyze_btn.click(
